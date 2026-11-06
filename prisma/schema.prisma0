@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url = "file:./dev.db"
+}
+
+model Product {
+  id String @id @default(cuid())
+  name String
+  description String?
+  price Float
+  originalPrice Float?
+  discountPercent Float @default(0)
+  isOffer Boolean @default(false)
+  stock Int @default(0)
+  imageUrl String?
+  images String?
+  videoUrl String?
+  category String?
+  tags String?
+  sku String?
+  supplierId String?
+  supplierName String?
+  status String @default("pending")
+  isApproved Boolean @default(false)
+  isActive Boolean @default(false)
+  installationEnabled Boolean @default(false)
+  installationType String?
+  installationPrice Float?
+  installationNotes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  isDeleted Boolean @default(false)
+  deletedAt DateTime?
+  orders Order[]
+}
+
+model Order {
+  id String @id @default(cuid())
+  customerName String
+  customerPhone String
+  address String?
+  total Float
+  status String @default("PENDING")
+  items String?
+  createdAt DateTime @default(now())
+  productId String?
+  supplierId String?
+  productPrice Float @default(0)
+  platformCommission Float @default(0)
+  supplierNet Float @default(0)
+  vat Float @default(0)
+  commissionVat Float @default(0)
+  installationFee Float @default(0)
+  tripFee Float @default(0)
+  payoutStatus String @default("unpaid")
+  product Product? @relation(fields: [productId], references: [id])
+}
+
+model StoreUser {
+  id String @id @default(cuid())
+  email String? @unique
+  phone String? @unique
+  password String
+  name String
+  city String @default("Riyadh")
+  role String @default("CUSTOMER")
+  createdAt DateTime @default(now())
+}
+
+model Supplier {
+  id String @id @default(cuid())
+  name String
+  phone String @unique
+  password String
+  city String?
+  status String @default("نشط")
+  createdAt DateTime @default(now())
+}
+
+model Technician {
+  id String @id @default(cuid())
+  name String
+  phone String @unique
+  password String
+  specialty String?
+  city String?
+  status String @default("متاح")
+  rating Float @default(5.0)
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id String @id @default(cuid())
+  name String @unique
+  nameAr String?
+  slug String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model Tag {
+  id String @id @default(cuid())
+  name String @unique
+  nameAr String?
+  createdAt DateTime @default(now())
+}
+
+model Payout {
+  id String @id @default(cuid())
+  supplierId String
+  amount Float
+  status String @default("pending")
+  createdAt DateTime @default(now())
+}
+model MasterOrder {
+  id String @id @default(cuid())
+  orderNumber String @unique
+  customerName String
+  customerPhone String
+  customerLat Float?
+  customerLng Float?
+  customerAddress String?
+  hubSupplierId String?
+  hubSupplierName String?
+  status String @default("pending")
+  gross Float
+  appFee10 Float
+  tax15 Float
+  net Float
+  totalAmount Float
+  items MasterOrderItem[]
+  subOrders SubOrder[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MasterOrderItem {
+  id String @id @default(cuid())
+  masterOrderId String
+  masterOrder MasterOrder @relation(fields: [masterOrderId], references: [id], onDelete: Cascade)
+  productId String
+  name String
+  image String?
+  quantity Int
+  receivedQuantity Int @default(0)
+  price Float
+  supplierId String
+  supplierName String
+}
+
+model SubOrder {
+  id String @id @default(cuid())
+  masterOrderId String
+  masterOrder MasterOrder @relation(fields: [masterOrderId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplierName String
+  status String @default("pending")
+  note String?
+  sentAt DateTime?
+}
+model CartReservation {
+  id String @id @default(cuid())
+  productId String
+  productName String
+  quantity Int
+  price Float
+  supplierId String
+  supplierName String
+  sessionId String
+  image String?
+  status String @default("reserved")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([sessionId])
+  @@index([expiresAt])
+}

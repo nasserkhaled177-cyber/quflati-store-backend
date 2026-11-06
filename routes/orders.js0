@@ -1,0 +1,73 @@
+const express = require('express');
+const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+// انشاء طلب جديد - هنا ينقص المخزون تلقائي
+router.post('/', async (req,res)=>{
+  try{
+    const { productId, quantity, supplierId, customerName, price, productName } = req.body;
+    const qty = parseInt(quantity)||1;
+
+    // نقص المخزون
+    const product = await prisma.product.findUnique({where:{id:productId}});
+    if(!product) return res.status(404).json({error:'product not found'});
+    if(product.stock < qty) return res.status(400).json({error:'stock insufficient'});
+
+    await prisma.product.update({ where:{id:productId}, data:{ stock:{ decrement: qty } } });
+
+    // انشاء الطلب قيد الطلب
+    const order = await prisma.order.create({ data:{
+      productId, quantity:qty, supplierId: supplierId||product.supplierId,
+      productName: productName||product.name, price: parseFloat(price)||product.price,
+      status:'قيد الطلب', customerName: customerName||'عميل'
+    }});
+    res.json(order);
+  }catch(e){ res.status(500).json({error:e.message}) }
+});
+
+router.get('/', async (req,res)=>{
+  const orders = await prisma.order.findMany({orderBy:{createdAt:'desc'}})
+  res.json(orders)
+})
+router.get('/by-number/:orderNumber', async (req,res)=>{
+  const order = await prisma.order.findFirst({where:{orderNumber:req.params.orderNumber}})
+  res.json(order)
+})
+router.put('/:orderNumber/status', async (req,res)=>{
+  const {status, supplierStatus} = req.body
+  const order = await prisma.order.update({where:{orderNumber:req.params.orderNumber}, data:{status, supplierStatus}})
+  res.json(order)
+})
+
+// تحديث حالة الطلب - اذا اكتمل يبقى ناقص، اذا انلغى يرجع للمخزون
+router.put('/:id/status', async (req,res)=>{
+  try{
+    const { status } = req.body;
+    const order = await prisma.order.findUnique({where:{id:req.params.id}});
+    if(!order) return res.status(404).json({error:'not found'});
+
+    // اذا كان قيد الطلب وصار ملغي -> رجع المخزون
+    if(order.status==='قيد الطلب' && status==='ملغي'){
+      await prisma.product.update({ where:{id:order.productId}, data:{ stock:{ increment: order.quantity } } });
+    }
+    // اذا كان ملغي ورجع قيد الطلب -> نقص مرة ثانية
+    if(order.status==='ملغي' && status==='قيد الطلب'){
+      await prisma.product.update({ where:{id:order.productId}, data:{ stock:{ decrement: order.quantity } } });
+    }
+
+    const updated = await prisma.order.update({ where:{id:req.params.id}, data:{ status } });
+    res.json(updated);
+  }catch(e){ res.status(500).json({error:e.message}) }
+});
+
+router.delete('/:id', async (req,res)=>{
+  const order = await prisma.order.findUnique({where:{id:req.params.id}});
+  if(order && order.status==='قيد الطلب'){
+    await prisma.product.update({ where:{id:order.productId}, data:{ stock:{ increment: order.quantity } } });
+  }
+  await prisma.order.delete({where:{id:req.params.id}});
+  res.json({ok:true});
+});
+
+module.exports = router;

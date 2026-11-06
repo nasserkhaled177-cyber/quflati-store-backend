@@ -1,0 +1,7 @@
+node_modules
+.env
+public_OLD_BACKUP
+public
+uploads
+*.log
+.DS_Store

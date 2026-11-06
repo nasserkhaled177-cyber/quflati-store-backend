@@ -1,0 +1,134 @@
+const express=require('express');
+const router=express.Router();
+const {PrismaClient}=require('@prisma/client');
+const prisma=new PrismaClient();
+
+// للمورد - منتجاته هو فقط
+router.get('/', async(req,res)=>{
+  const {supplierId, deleted, forStore}=req.query;
+  if(forStore==='true'){
+    // للمتجر - اجمع الكميات حسب الاسم - نفس المنتج من موردين مختلفين = كمية واحدة مجموع
+    const all=await prisma.product.findMany({where:{isDeleted:false, isActive:true}});
+    const grouped={};
+    for(const p of all){
+      const key=p.name.trim().toLowerCase();
+      if(!grouped[key]){
+        grouped[key]={...p, totalStock:p.stock, suppliers:[p.supplierId], suppliersCount:1};
+      }else{
+        grouped[key].totalStock+=p.stock;
+        if(!grouped[key].suppliers.includes(p.supplierId)){
+          grouped[key].suppliers.push(p.supplierId);
+          grouped[key].suppliersCount++;
+        }
+      }
+    }
+    return res.json(Object.values(grouped));
+  }
+  const where={};
+  if(supplierId) where.supplierId=supplierId;
+  if(deleted==='true') where.isDeleted=true;
+  else where.isDeleted=false;
+  const list=await prisma.product.findMany({where, orderBy:{createdAt:'desc'}});
+  res.json(list);
+});
+
+router.get('/trash/all', async(req,res)=>{
+  const {supplierId}=req.query;
+  const where={isDeleted:true};
+  if(supplierId) where.supplierId=supplierId;
+  const list=await prisma.product.findMany({where, orderBy:{deletedAt:'desc'}});
+  res.json(list);
+});
+
+router.post('/', async(req,res)=>{
+  try{
+    const b=req.body;
+    let supplierId=b.supplierId;
+    if(!supplierId || supplierId==='demo'){
+      const s=await prisma.supplier.findFirst();
+      supplierId=s?s.id:'cmvi5sbir0000gx9ef41ti5bo';
+    }
+    const nameClean=b.name.trim();
+    const key=nameClean.toLowerCase();
+
+    // هل فيه منتج بنفس الاسم؟
+    const existingSameName=await prisma.product.findFirst({
+      where:{name:{equals:nameClean, mode:'insensitive'}, isDeleted:false}
+    });
+
+    if(existingSameName){
+      // نفس المورد يحاول يضيف نفس الاسم مرة ثانية = ممنوع
+      if(existingSameName.supplierId===supplierId){
+        return res.status(400).json({error:`المنتج "${nameClean}" موجود لديك مسبقا - استخدم توريد من صفحة التعديل`, existing:existingSameName, code:'DUPLICATE_SAME_SUPPLIER'});
+      }
+      // مورد ثاني يضيف نفس الاسم = خله ياخذ نفس معلومات المنتج الأصلي ويحط كميته فقط توريد
+      const prod=await prisma.product.create({data:{
+        name:existingSameName.name, // نفس الاسم الأصلي
+        description:existingSameName.description||b.description||'',
+        price:existingSameName.price||parseFloat(b.price)||0,
+        originalPrice:existingSameName.originalPrice||parseFloat(b.price)||0,
+        stock:parseInt(b.stock)||0, // كميته هو فقط
+        supplierId, supplierName:b.supplierName||supplierId,
+        category:existingSameName.category||b.category||'عام',
+        status:'approved', isApproved:true, isActive:true, isDeleted:false,
+        imageUrl:existingSameName.imageUrl||b.imageUrl||'', images:existingSameName.images||b.images||'',
+        tags:existingSameName.tags||b.tags||'', sku:`SKU-${Date.now()}`,
+        isOffer:existingSameName.isOffer||false, discountPercent:existingSameName.discountPercent||0
+      }});
+      await prisma.supplierLedger.create({data:{
+        supplierId, productId:prod.id, productName:prod.name,
+        action:'SUPPLY', description:`توريد أولي - المنتج موجود من مورد آخر (${existingSameName.supplierName}) - معلوماته مأخوذة تلقائيا`,
+        qtyBefore:0, qtyAfter:prod.stock, delta:prod.stock
+      }}).catch(()=>{});
+      return res.json({...prod, message:`المنتج "${nameClean}" كان مضاف مسبقا من مورد آخر - تم اضافة كميتك فقط كـ توريد`, isShared:true, masterProduct:existingSameName});
+    }
+
+    // منتج جديد كليا
+    const prod=await prisma.product.create({data:{
+      name:nameClean, description:b.description||'', price:parseFloat(b.price)||0,
+      originalPrice:parseFloat(b.originalPrice||b.price)||0,
+      stock:parseInt(b.stock)||0, supplierId, supplierName:b.supplierName||supplierId,
+      category:b.category||'عام', status:'approved', isApproved:true, isActive:true, isDeleted:false,
+      imageUrl:b.imageUrl||'', images:b.images||'', tags:b.tags||'', sku:b.sku||`SKU-${Date.now()}`,
+      discountPercent:parseFloat(b.discountPercent)||0, isOffer:!!b.isOffer
+    }});
+    await prisma.supplierLedger.create({data:{
+      supplierId, productId:prod.id, productName:prod.name,
+      action:'ADD_PRODUCT', description:'إضافة منتج جديد', qtyBefore:0, qtyAfter:prod.stock, delta:prod.stock
+    }}).catch(()=>{});
+    res.json(prod);
+  }catch(e){ console.error(e); res.status(500).json({error:e.message}) }
+});
+
+router.put('/:id', async(req,res)=>{
+  try{
+    const b=req.body;
+    const data={};
+    if(b.name!==undefined) data.name=b.name.trim();
+    if(b.price!==undefined) data.price=parseFloat(b.price);
+    if(b.originalPrice!==undefined) data.originalPrice=parseFloat(b.originalPrice);
+    if(b.stock!==undefined) data.stock=parseInt(b.stock);
+    if(b.isDeleted!==undefined) data.isDeleted=b.isDeleted;
+    if(b.deletedAt!==undefined) data.deletedAt=b.deletedAt?new Date(b.deletedAt):null;
+    if(b.isOffer!==undefined) data.isOffer=b.isOffer;
+    if(b.discountPercent!==undefined) data.discountPercent=parseFloat(b.discountPercent);
+    if(b.offerStart!==undefined) data.offerStart=b.offerStart?new Date(b.offerStart):null;
+    if(b.offerEnd!==undefined) data.offerEnd=b.offerEnd?new Date(b.offerEnd):null;
+    const updated=await prisma.product.update({where:{id:req.params.id}, data});
+    res.json(updated);
+  }catch(e){ res.status(500).json({error:e.message}) }
+});
+
+router.delete('/:id/permanent', async(req,res)=>{
+  const p=await prisma.product.findUnique({where:{id:req.params.id}});
+  if(p){
+    await prisma.supplierLedger.create({data:{
+      supplierId:p.supplierId, productId:p.id, productName:p.name,
+      action:'DELETE_PERMANENT', description:'محذوف نهائي', qtyBefore:p.stock, qtyAfter:0, delta:-p.stock
+    }}).catch(()=>{});
+  }
+  await prisma.product.delete({where:{id:req.params.id}});
+  res.json({ok:true});
+});
+
+module.exports=router;

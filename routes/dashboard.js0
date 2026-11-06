@@ -1,0 +1,181 @@
+const express = require('express');
+const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+/**
+ * GET /api/dashboard/:supplierId
+ * وظيفته: يجمع كل بيانات التاجر - المنتجات، السجل، المخزون، التركيب
+ */
+router.get('/:supplierId', async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+
+    // 1- نجيب كل المنتجات حق هذا التاجر حتى المحذوفة
+    const allProducts = await prisma.product.findMany({ where: { supplierId } }).catch(() => []);
+    
+    // 2- نفرز المنتجات حسب حالتها
+    const activeProducts = allProducts.filter(p => !p.isDeleted && !p.isPermanent); // النشطة
+    const deletedProducts = allProducts.filter(p => p.isDeleted && !p.isPermanent); // في سلة المحذوفات
+    const permanentProducts = allProducts.filter(p => p.isPermanent); // محذوف نهائي
+
+    // 3- نجيب سجل العمليات كامل مرتب من القديم للجديد
+    const ledger = await prisma.supplierLedger.findMany({ 
+      where: { supplierId }, 
+      orderBy: { createdAt: 'asc' } 
+    }).catch(() => []);
+    
+    // 4- نحول السجل الخام الى شكل يفهمه الداشبورد
+    const stockLogs = ledger.map(l => {
+      // اذا العملية بيع وفيها تركيب - نطلع حق التركيب من الوصف
+      // مثال الوصف: "تم البيع 1 + تركيب 1500 ريال"
+      let installationFee = 0;
+      let hasInstallation = false;
+      if (l.description && l.description.includes('تركيب')) {
+        const match = l.description.match(/تركيب\s*(\d+)/);
+        if (match) {
+          installationFee = Number(match[1]);
+          hasInstallation = true;
+        }
+      }
+
+      return {
+        productId: l.productId,
+        productName: l.productName,
+        // تحويل الكود الانجليزي الى عربي
+        type: 
+          l.action === 'ADD_PRODUCT' ? 'اضافة' :
+          l.action === 'SUPPLY' ? 'توريد' :
+          l.action === 'EXPORT' ? 'تصدير' :
+          l.action === 'SALE' ? 'تم البيع' :
+          l.action === 'SALE_WITH_INSTALL' ? 'بيع + تركيب' : // جديد
+          l.action === 'OFFER' ? 'عرض خاص' :
+          l.action === 'PRICE_UPDATE' ? 'تعديل السعر' :
+          l.action === 'DELETE_PRODUCT' ? 'محذوف' :
+          l.action === 'DELETE_PERMANENT' ? 'محذوف نهائي' :
+          l.action === 'RESTORE_PRODUCT' ? 'مسترجع' :
+          l.action,
+
+        qtyBefore: l.qtyBefore || 0,
+        qtyAfter: l.qtyAfter || 0,
+        delta: l.delta || 0,
+        createdAt: l.createdAt,
+        reason: l.description, // هنا بيكون فيه "تركيب 1500 ريال"
+        
+        // حقول التركيب الجديدة
+        installationFee: installationFee, // كم حق التركيب
+        hasInstallation: hasInstallation, // هل فيه تركيب ولا لا
+        installationNote: hasInstallation ? `ملاحظة: تركيب ${installationFee} ريال` : ''
+      };
+    });
+
+    // نفس السجل بس باسم ثاني يتوقعه الفرونت القديم
+    const allTimeline = stockLogs;
+
+    // 5- نجهز المنتجات للجدول مع المخزون لكل منتج
+    const addedProducts = allProducts.map(p => ({
+      ...p,
+      stock: p.stock || 0 // المخزون الحالي لكل منتج - نفس العمود اللي عندك الحين
+    }));
+
+    // 6- اجمالي المخزون لكل المنتجات
+    const totalStockAll = activeProducts.reduce((sum, p) => sum + (p.stock || 0), 0);
+
+    // 7- اجمالي حق التركيب من كل المبيعات
+    const totalInstallationFees = stockLogs
+      .filter(l => l.hasInstallation)
+      .reduce((sum, l) => sum + l.installationFee, 0);
+
+    // 8- العدادات اللي فوق
+    const counts = {
+      added: activeProducts.length,
+      trash: deletedProducts.length,
+      stock: totalStockAll, // اجمالي المخزون
+      sold: ledger.filter(l => l.action === 'SALE' || l.action === 'SALE_WITH_INSTALL').length,
+      pending: 0,
+      offers: allProducts.filter(p => p.isOffer).length,
+      all: ledger.length
+    };
+
+    const totals = {
+      totalVat: 0,
+      totalCommission: 0,
+      totalNet: 0,
+      totalStock: totalStockAll, // اجمالي المخزون الكامل
+      totalInstallation: totalInstallationFees // اجمالي حق التركيب
+    };
+
+// --- بداية الإصلاح الحقيقية ---
+const realOrders = await prisma.order.findMany({
+  where: { supplierId: supplierId },
+  orderBy: { createdAt: 'desc' }
+}).catch(() => []);
+
+const pendingOrders = realOrders.filter(o => o.status === 'PENDING' || o.status === 'قيد الطلب' || !o.status || o.status === '');
+const completedOrders = realOrders.filter(o => o.status === 'COMPLETED' || o.status === 'مكتمل');
+
+const counts = {
+  total: allProducts.length,
+  active: addedProducts.length,
+  deleted: deletedProducts.length,
+  pending: pendingOrders.length, // كان 0 قبل
+  offers: allProducts.filter(p => p.isOffer).length,
+  all: ledger.length
+};
+// --- نهاية الإصلاح ---
+    // 9- نرجع كل شي للفرونت
+     res.json({
+       counts,
+       addedProducts,
+       deletedProducts: [...deletedProducts, ...permanentProducts],
+       pendingOrders, // الحين فيه بيانات
+       completedOrders,
+       offers: allProducts.filter(p => p.isOffer),
+       ledger,
+       stockLogs,
+       allTimeline,
+       totals
+      });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/dashboard/sale-with-install
+ * وظيفته: لما ينباع منتج والعميل طلب تركيب
+ * ترسل: { productId, supplierId, qty:1, installationFee:1500 }
+ * يكتب ملاحظة في السجل: "تم البيع 1 + تركيب 1500 ريال"
+ */
+router.post('/sale-with-install', async (req, res) => {
+  try {
+    const { productId, supplierId, qty, installationFee } = req.body;
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    
+    const oldStock = product.stock;
+    const newStock = oldStock - qty;
+
+    await prisma.supplierLedger.create({
+      data: {
+        supplierId,
+        productId,
+        productName: product.name,
+        action: 'SALE_WITH_INSTALL', // عملية جديدة
+        type: 'بيع + تركيب',
+        qtyBefore: oldStock,
+        qtyAfter: newStock,
+        delta: -qty,
+        description: `تم البيع ${qty} + تركيب ${installationFee} ريال - ملاحظة: حق التركيب ${installationFee}`
+      }
+    });
+
+    await prisma.product.update({ where: { id: productId }, data: { stock: newStock } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+module.exports = router;

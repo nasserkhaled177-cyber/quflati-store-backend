@@ -1,72 +1,75 @@
-const express = require('express')
-const { PrismaClient } = require('@prisma/client')
-const bcrypt = require('bcryptjs')
-const prisma = new PrismaClient()
-const router = express.Router()
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-async function findAny(q){
-  const qq = (q||"").trim()
-  if(!qq) return null
-  const [supplier, storeUser, technician] = await Promise.all([
-    prisma.supplier.findFirst({ where: { phone: qq } }),
-    prisma.storeUser.findFirst({ where: { OR: [{ phone: qq }, { email: qq }] } }),
-    prisma.technician.findFirst({ where: { phone: qq } }),
-  ])
-  if(supplier) return { exists:true, role:'SUPPLIER', name:supplier.name, phone:supplier.phone, user:supplier }
-  if(technician) return { exists:true, role:'TECHNICIAN', name:technician.name, phone:technician.phone, user:technician }
-  if(storeUser) return { exists:true, role:'CUSTOMER', name:storeUser.name, phone:storeUser.phone||storeUser.email, user:storeUser }
-  return null
-}
+const normPhone = (p)=> String(p||'').replace(/\s/g,'').replace(/^\+966/,'0').replace(/^\+967/,'0');
+const normEmail = (e)=> String(e||'').trim().toLowerCase();
 
-router.get('/check', async (req,res)=>{
-  const r = await findAny(req.query.query)
-  if(!r) return res.json({exists:false})
-  res.json({exists:true, role:r.role, name:r.name, phone:r.phone})
-})
+// ===== فحص - هل الحساب موجود؟ - للبوابة =====
+router.post('/check', async (req,res)=>{
+  const { email, phone } = req.body;
+  const e = normEmail(email), p = normPhone(phone);
+  const byEmail = e ? await prisma.storeUser.findUnique({where:{email:e}}).catch(()=>null) : null;
+  const byPhone = p ? await prisma.storeUser.findUnique({where:{phone:p}}).catch(()=>null) : null;
+  if(byEmail) return res.json({ exists:true, by:'email', user:{id:byEmail.id, name:byEmail.name, email:byEmail.email, phone:byEmail.phone} });
+  if(byPhone) return res.json({ exists:true, by:'phone', user:{id:byPhone.id, name:byPhone.name, email:byPhone.email, phone:byPhone.phone} });
+  return res.json({ exists:false });
+});
 
-router.post('/login', async (req,res)=>{
+// ===== تسجيل عميل - الايميل + الجوال اجباري - الجوال هو المفتاح =====
+router.post('/register', async (req,res)=>{
   try{
-    const id = (req.body.phone || req.body.email || "").trim()
-    const pass = (req.body.password || "").trim()
-    console.log("LOGIN TRY:", id, "pass:", pass)
-    const found = await findAny(id)
-    if(!found){ console.log("not found"); return res.json({success:false, error:"حسابك غير مسجل"}) }
+    const { name, email, phone, password, mode, city } = req.body;
+    const e = normEmail(email);
+    const p = normPhone(phone);
+    if(!e || !e.includes('@')) return res.status(400).json({ message:'الايميل اجباري' });
+    if(!p) return res.status(400).json({ message:'رقم الجوال اجباري - هو مفتاح حسابك' });
+    if(!password || password.length<6) return res.status(400).json({ message:'كلمة المرور 6 احرف على الاقل' });
 
-    const hash = found.user.password || ""
-    let ok = false
+    // 1 - نفس الايميل مسجل قبل
+    const byEmail = await prisma.storeUser.findUnique({where:{email:e}}).catch(()=>null);
+    if(byEmail) return res.status(409).json({ message:'هذا الايميل مسجل قبل - سجل دخول' });
 
-    // يقبل الاثنين: نص عادي test و هاش bcrypt
-    if(pass === hash) ok = true
-    else {
-      try{ ok = await bcrypt.compare(pass, hash) }catch(e){ console.log("bcrypt compare fail, try plain:", e.message); ok = false }
+    // 2 - نفس الرقم مربوط بايميل ثاني
+    const byPhone = await prisma.storeUser.findUnique({where:{phone:p}}).catch(()=>null);
+    if(byPhone){
+      if(byPhone.email && byPhone.email !== e) return res.status(409).json({ message:`هذا الرقم مربوط بايميل اخر (${byPhone.email}) - ما تقدر تسجل فيه مرة ثانية` });
+      return res.status(409).json({ message:'هذا الرقم مسجل قبل - سجل دخول' });
     }
 
-    console.log("LOGIN RESULT ok=", ok, "role=", found.role)
-    if(!ok) return res.json({success:false, error:"كلمة المرور خطأ - جرب test"})
+    const hashed = await bcrypt.hash(password, 10).catch(()=>password);
+    const user = await prisma.storeUser.create({ data:{
+      name: (name||'عميل').trim(), email:e, phone:p, password:hashed, role:'CUSTOMER', city: city||'Riyadh'
+    }});
+    const { password:_, ...safe } = user;
+    return res.json({ token:'token-'+user.id, user: safe });
+  }catch(err){ console.log('register err', err); return res.status(500).json({ message: err.message }); }
+});
 
-    const token = require('jsonwebtoken').sign({id:found.user.id, role:found.role}, "quflati_secret_2026")
-    res.json({success:true, token, user:{id:found.user.id, name:found.name, phone:found.phone, role:found.role}})
-  }catch(e){ console.log(e); res.json({success:false, error:e.message}) }
-})
+// ===== دخول - بايميل او جوال - يرجع id فعلي =====
+router.post('/login', async (req,res)=>{
+  try{
+    const { email, phone, password, qq, id } = req.body;
+    const raw = normEmail(email || qq || id || phone);
+    const p = normPhone(phone || qq || id || '');
+    let user = null;
+    if(raw.includes('@')) user = await prisma.storeUser.findUnique({where:{email:raw}}).catch(()=>null);
+    if(!user && p) user = await prisma.storeUser.findUnique({where:{phone:p}}).catch(()=>null);
+    if(!user && raw) user = await prisma.storeUser.findFirst({where:{OR:[{email:raw},{phone:raw}]}}).catch(()=>null);
+    if(!user) return res.status(404).json({ message:'الحساب غير موجود - سجل جديد' });
+    const ok = await bcrypt.compare(password||'', user.password).catch(()=> password===user.password);
+    if(!ok) return res.status(401).json({ message:'كلمة المرور خطأ' });
+    const { password:_, ...safe } = user;
+    return res.json({ token:'token-'+user.id, user: safe });
+  }catch(err){ return res.status(500).json({ message: err.message }); }
+});
 
-router.post('/register', async (req,res)=>{
-  const {name, email, phone, password, role} = req.body
-  const id=(phone||email||"").trim()
-  const r=(role||"CUSTOMER").toUpperCase()
-  if(r==="SUPPLIER") return res.json({success:false, error:"المورد من 3006 فقط"})
-  const ex=await findAny(id)
-  if(ex){
-    if(ex.role==="SUPPLIER") return res.json({success:false, error:`محجوز كمورد ${ex.phone}`})
-    return res.json({success:false, error:`محجوز ك${ex.role}`})
-  }
-  const hashed=await bcrypt.hash(password,10)
-  if(r==="TECHNICIAN"){
-    const t=await prisma.technician.create({data:{name, phone:id, password:hashed, status:"بانتظار الموافقة"}})
-    return res.json({success:true, user:t})
-  }else{
-    const u=await prisma.storeUser.create({data:{name, phone:!id.includes("@")?id:null, email:id.includes("@")?id:null, password:hashed, role:"CUSTOMER", city:"Riyadh"}})
-    return res.json({success:true, user:u})
-  }
-})
+// ===== فحص - وش المحفوظ - مؤقت =====
+router.get('/debug-users', async (req,res)=>{
+  const list = await prisma.storeUser.findMany({ select:{id:true, name:true, email:true, phone:true, role:true, createdAt:true}, orderBy:{createdAt:'desc'} }).catch(e=>[]);
+  return res.json({ count:list.length, users:list });
+});
 
-module.exports = router
+module.exports = router;

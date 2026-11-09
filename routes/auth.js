@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
+const jwt = require('jsonwebtoken');
+const SECRET = process.env.JWT_SECRET || 'quflati-secret-change-me';
+function makeToken(u){ return jwt.sign({ id: u.id, name: u.name, phone: u.phone, email: u.email, role: u.role || 'CUSTOMER' }, SECRET, { expiresIn: '7d' }); }
 const prisma = new PrismaClient();
 
 const normPhone = (p)=> String(p||'').replace(/\s/g,'').replace(/^\+966/,'0').replace(/^\+967/,'0');
@@ -44,7 +47,7 @@ router.post('/register', async (req,res)=>{
       name: (name||'عميل').trim(), email:e, phone:p, password:hashed, role:'CUSTOMER', city: city||'Riyadh'
     }});
     const { password:_, ...safe } = user;
-    return res.json({ token:'token-'+user.id, user: safe });
+    return res.json({ token: makeToken(user), user: safe });
   }catch(err){ console.log('register err', err); return res.status(500).json({ message: err.message }); }
 });
 
@@ -62,7 +65,7 @@ router.post('/login', async (req,res)=>{
     const ok = await bcrypt.compare(password||'', user.password).catch(()=> password===user.password);
     if(!ok) return res.status(401).json({ message:'كلمة المرور خطأ' });
     const { password:_, ...safe } = user;
-    return res.json({ token:'token-'+user.id, user: safe });
+    return res.json({ token: makeToken(user), user: safe });
   }catch(err){ return res.status(500).json({ message: err.message }); }
 });
 

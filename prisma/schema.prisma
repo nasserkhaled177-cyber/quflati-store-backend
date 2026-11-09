@@ -73,7 +73,7 @@ model Order {
 
 model StoreUser {
   id        String   @id @default(cuid())
-  email     String?  @unique
+  email     String? 
   phone     String?  @unique
   password  String
   name      String

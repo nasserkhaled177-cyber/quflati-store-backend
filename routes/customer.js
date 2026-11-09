@@ -1,15 +1,15 @@
 const express = require("express")
-const jwt = require("jsonwebtoken")
 const router = express.Router()
 
 function authMiddleware(req, res, next){
   const token = (req.headers.authorization || "").replace("Bearer ", "")
   if(!token) return res.status(401).json({ message:"غير مسجل دخول" })
-  try{ req.user = jwt.verify(token, process.env.JWT_SECRET || "quflati-secret"); next() }
+  // ✅ التوكن حقك token-<id> - مو JWT
+  if(token.startsWith("token-")){ req.user = { id: token.replace("token-", "") }; return next() }
+  try{ req.user = require("jsonwebtoken").verify(token, process.env.JWT_SECRET || "quflati-secret"); return next() }
   catch(e){ return res.status(401).json({ message:"توكن منتهي" }) }
 }
 
-// GET /api/customer/me - هذا اللي ينقص AccountTab
 router.get("/me", authMiddleware, async (req, res)=>{
   try{
     const prisma = req.app.get("prisma")
@@ -23,7 +23,6 @@ router.get("/me", authMiddleware, async (req, res)=>{
   }catch(e){ return res.status(500).json({ message:"فشل" }) }
 })
 
-// PUT /api/customer/me - هذا اللي ينقص تعديل حسابي
 router.put("/me", authMiddleware, async (req, res)=>{
   try{
     const prisma = req.app.get("prisma")

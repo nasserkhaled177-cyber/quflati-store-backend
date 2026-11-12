@@ -22,10 +22,10 @@ model Product {
   images              String?
   videoUrl            String?
   category            String?
-  country             String   @default("")
-  countryCode         String   @default("")
-  city                String   @default("")
-  province            String   @default("")
+  country             String    @default("")
+  countryCode         String    @default("")
+  city                String    @default("")
+  province            String    @default("")
   tags                String?
   sku                 String?
   supplierId          String?
@@ -42,75 +42,109 @@ model Product {
   isDeleted           Boolean   @default(false)
   deletedAt           DateTime?
   orders              Order[]
-isPermanent Boolean @default(false)
-}
-
-model Order {
-  id                 String   @id @default(cuid())
-  customerName       String
-  customerPhone      String
-  address            String?
-  country            String   @default("")
-  countryCode        String   @default("")
-  province           String   @default("")
-  city               String   @default("")
-  total              Float
-  status             String   @default("PENDING")
-  items              String?
-  createdAt          DateTime @default(now())
-  productId          String?
-  supplierId         String?
-  productPrice       Float    @default(0)
-  platformCommission Float    @default(0)
-  supplierNet        Float    @default(0)
-  vat                Float    @default(0)
-  commissionVat      Float    @default(0)
-  installationFee    Float    @default(0)
-  tripFee            Float    @default(0)
-  payoutStatus       String   @default("unpaid")
-  product            Product? @relation(fields: [productId], references: [id])
+  isPermanent         Boolean   @default(false)
 }
 
 model StoreUser {
-  id        String   @id @default(cuid())
-  email     String? 
-  phone     String?  @unique
-  password  String
-  name      String
-  city      String   @default("")
-  country   String   @default("")
-  countryCode String @default("")
-  province  String   @default("")
-    role      String   @default("CUSTOMER")
+  id          String  @id @default(cuid())
+  email       String? // اختياري - في اليدوي - وجاي - من جوجل - اذا دخل - بجوجل
+  phone       String? // اختياري - في قاعدة البيانات - عشان جوجل - واجباري - في التسجيل اليدوي - من auth.js
+  name        String
+  city        String  @default("") // المدينة - تنسحب - من موقعه - اول مرة - وتثبت - بعدها
+  country     String  @default("")
+  countryCode String  @default("")
+  province    String  @default("")
+  role        String  @default("CUSTOMER")
+
+  avatar String? @default("") // من جوجل - او من حسابي - او فاضية
+
+  googleId     String? @unique
+  authProvider String  @default("phone") // phone - او google - او phone+google
+
+  // ✅ جديد - بدل password - اللي شلناه
+  phoneVerified Boolean @default(false) // تحقق - بالـ OTP - على الجوال - ولا لا؟
+  emailVerified Boolean @default(false) // تحقق - بالايميل - ولا لا؟
+  cityLocked    Boolean @default(false) // المدينة - تثبتت - ولا لسا - يقدر - نطلبها - منه - اول مرة - بس؟
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[] // علاقة - الطلبات - حقه
+
+  @@unique([phone, role])
+  @@index([email])
+  @@index([googleId])
+}
+
+// ✅ جديد - كود OTP - ما ينحفظ - في StoreUser - ينحفظ - هنا - لحاله - وينمسح - بعد التحقق
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String // 123456 - في التطوير - وبعدين - كود - حقيقي - من خدمة الرسائل
+  purpose   String   @default("login") // login - او add_email - او change_phone
+  expiresAt DateTime // ينتهي - بعد 5 دقايق
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, code])
+  @@index([expiresAt])
+}
+
+// ✅ جديد - الطلب - فيه - نسخة - مجمدة - وقت الطلب - مثل ما اتفقنا
+model Order {
+  id         String    @id @default(cuid())
+  customerId String
+  customer   StoreUser @relation(fields: [customerId], references: [id])
+
+  // ✅ نسخة - مجمدة - وقت الطلب - ما تتغير - بعدين - لو غير - حسابه
+  customerNameAtOrder   String // الاسم - وقت الطلب
+  customerAvatarAtOrder String? // الصورة - وقت الطلب
+  customerPhoneAtOrder  String? // الجوال - وقت الطلب
+  customerEmailAtOrder  String? // الايميل - وقت الطلب - اذا كان - عنده
+  customerCityAtOrder   String // المدينة - وقت الطلب - وهي - ثابتة - اصلاً
+
+  orderedAt DateTime @default(now()) // ساعة + تاريخ - الطلب - عشان نثبت - النسخة - على هالوقت
+
+  // ... باقي حقول الطلب - اللي عندك - من قبل - الخدمة / السعر / الحالة - خليها - مثل ما هي - تحت - هنا
+  // serviceId String?
+  // status    String  @default("pending")
+  // total     Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Product   Product? @relation(fields: [productId], references: [id])
+  productId String?
+
+  @@index([customerId])
+  @@index([orderedAt])
 }
 
 model Supplier {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @unique
-  password  String
-  city      String?
-  country   String   @default("")
-  countryCode String @default("")
-  province  String   @default("")
-  status    String   @default("نشط")
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  phone       String   @unique
+  password    String
+  city        String?
+  country     String   @default("")
+  countryCode String   @default("")
+  province    String   @default("")
+  status      String   @default("نشط")
+  createdAt   DateTime @default(now())
 }
 
 model Technician {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @unique
-  password  String
-  specialty String?
-  city      String?
-  country   String   @default("")
-  countryCode String @default("")
-  province  String   @default("")
-  status    String   @default("متاح")
-  rating    Float    @default(5.0)
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  phone       String   @unique
+  password    String
+  specialty   String?
+  city        String?
+  country     String   @default("")
+  countryCode String   @default("")
+  province    String   @default("")
+  status      String   @default("متاح")
+  rating      Float    @default(5.0)
+  createdAt   DateTime @default(now())
 }
 
 model Category {
@@ -138,33 +172,34 @@ model Payout {
 }
 
 model MasterOrder {
-  id              String            @id @default(cuid())
-  orderNumber     String            @unique
-  customerName    String
-  customerPhone   String
-  customerLat     Float?
-  customerLng     Float?
-  customerAddress String?
-  hubSupplierId   String?
-  hubSupplierName String?
-  hasInstallation     Boolean   @default(false)
+  id                  String            @id @default(cuid())
+  orderNumber         String            @unique
+  customerName        String
+  customerPhone       String
+  customerLat         Float?
+  customerLng         Float?
+  customerAddress     String?
+  hubSupplierId       String?
+  hubSupplierName     String?
+  hasInstallation     Boolean           @default(false)
   installationType    String?
-  installationPrice   Float     @default(0)
-  installationStatus  String    @default("none")
+  installationPrice   Float             @default(0)
+  installationStatus  String            @default("none")
   technicianBackendId String?
-  status          String            @default("pending")
-  overallStatus   String            @default("جارية")
-  isRated         Boolean           @default(false)
-  gross           Float
-  appFee10        Float
-  tax15           Float
-  net             Float
-  totalAmount     Float
-  items           MasterOrderItem[]
-  subOrders       SubOrder[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  status              String            @default("pending")
+  overallStatus       String            @default("جارية")
+  isRated             Boolean           @default(false)
+  gross               Float
+  appFee10            Float
+  tax15               Float
+  net                 Float
+  totalAmount         Float
+  items               MasterOrderItem[]
+  subOrders           SubOrder[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 }
+
 model MasterOrderItem {
   id               String      @id @default(cuid())
   masterOrderId    String

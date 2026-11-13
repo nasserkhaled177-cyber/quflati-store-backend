@@ -3,11 +3,25 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 const app = express();
 
 // 1. لازم json و cors قبل أي راوتر - هذا كان الغلط الأول
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+// سجل كل حركة - JSON
+app.use((req, res, next) => {
+  console.log(JSON.stringify({
+    time: new Date().toISOString(),
+    method: req.method,
+    url: req.url,
+    body: req.body,
+    query: req.query
+  }, null, 2));
+  next();
+});
+
 app.use("/uploads", express.static("uploads"));
 
 // 2. ربط الـ auth - نفك الـ { router } لأن الملف يصدر أوبجكت

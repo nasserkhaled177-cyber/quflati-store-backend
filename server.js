@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 const app = express();
 
 // 1. لازم json و cors قبل أي راوتر - هذا كان الغلط الأول
-app.use(cors({ origin: true, credentials: true }));
 const allowedOrigins = [
   'https://quflaty-admin-frontendd.vercel.app',
   'https://quflati-supplier-portal.vercel.app',

@@ -19,7 +19,7 @@ router.get('/', async (req,res)=>{
 // اضافة
 router.post('/', async (req,res)=>{ 
   try{ 
-    const s = await prisma.supplier.create({data:{name:req.body.name, phone:req.body.phone, password:req.body.password,token:req.body.token, city:req.body.city||'الرياض', country:req.body.country||'', countryCode:req.body.countryCode||'', province:req.body.province||req.body.city||'الرياض', status:'نشط'}}); 
+const s = await prisma.supplier.create({data:{name:req.body.name, phone:req.body.phone, password:req.body.password, token:req.body.token, city:req.body.city, country:req.body.country, countryCode:req.body.countryCode, province:req.body.province || req.body.city, status:'نشط'}});
     res.json({...s,_id:s.id}); 
   }catch(e){ res.status(400).json({error:e.message}) } 
 });

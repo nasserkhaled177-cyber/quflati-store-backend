@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id                  String    @id @default(cuid())
+  name                String
+  description         String?
+  price               Float
+  originalPrice       Float?
+  discountPercent     Float     @default(0)
+  isOffer             Boolean   @default(false)
+  offerStart          DateTime?
+  offerEnd            DateTime?
+  stock               Int       @default(0)
+  imageUrl            String?
+  images              String?
+  videoUrl            String?
+  category            String?
+  country             String   @default("")
+  countryCode         String   @default("")
+  city                String   @default("")
+  province            String   @default("")
+  tags                String?
+  sku                 String?
+  supplierId          String?
+  supplierName        String?
+  status              String    @default("pending")
+  isApproved          Boolean   @default(false)
+  isActive            Boolean   @default(false)
+  installationEnabled Boolean   @default(false)
+  installationType    String?
+  installationPrice   Float?
+  installationNotes   String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  isDeleted           Boolean   @default(false)
+  deletedAt           DateTime?
+  orders              Order[]
+isPermanent Boolean @default(false)
+}
+
+model Order {
+  id                 String   @id @default(cuid())
+  customerName       String
+  customerPhone      String
+  address            String?
+  country            String   @default("")
+  countryCode        String   @default("")
+  province           String   @default("")
+  city               String   @default("")
+  total              Float
+  status             String   @default("PENDING")
+  items              String?
+  createdAt          DateTime @default(now())
+  productId          String?
+  supplierId         String?
+  productPrice       Float    @default(0)
+  platformCommission Float    @default(0)
+  supplierNet        Float    @default(0)
+  vat                Float    @default(0)
+  commissionVat      Float    @default(0)
+  installationFee    Float    @default(0)
+  tripFee            Float    @default(0)
+  payoutStatus       String   @default("unpaid")
+  product            Product? @relation(fields: [productId], references: [id])
+}
+
+model StoreUser {
+  id        String   @id @default(cuid())
+  email     String? 
+  phone     String?  @unique
+  password  String
+  name      String
+  city      String   @default("")
+  country   String   @default("")
+  countryCode String @default("")
+  province  String   @default("")
+    role      String   @default("CUSTOMER")
+  createdAt DateTime @default(now())
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  password  String
+  city      String?
+  country   String   @default("")
+  countryCode String @default("")
+  province  String   @default("")
+  status    String   @default("نشط")
+  createdAt DateTime @default(now())
+}
+
+model Technician {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  password  String
+  specialty String?
+  city      String?
+  country   String   @default("")
+  countryCode String @default("")
+  province  String   @default("")
+  status    String   @default("متاح")
+  rating    Float    @default(5.0)
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  nameAr    String?
+  slug      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  nameAr    String?
+  createdAt DateTime @default(now())
+}
+
+model Payout {
+  id         String   @id @default(cuid())
+  supplierId String
+  amount     Float
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+}
+
+model MasterOrder {
+  id              String            @id @default(cuid())
+  orderNumber     String            @unique
+  customerName    String
+  customerPhone   String
+  customerLat     Float?
+  customerLng     Float?
+  customerAddress String?
+  hubSupplierId   String?
+  hubSupplierName String?
+  hasInstallation     Boolean   @default(false)
+  installationType    String?
+  installationPrice   Float     @default(0)
+  installationStatus  String    @default("none")
+  technicianBackendId String?
+  status          String            @default("pending")
+  overallStatus   String            @default("جارية")
+  isRated         Boolean           @default(false)
+  gross           Float
+  appFee10        Float
+  tax15           Float
+  net             Float
+  totalAmount     Float
+  items           MasterOrderItem[]
+  subOrders       SubOrder[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+model MasterOrderItem {
+  id               String      @id @default(cuid())
+  masterOrderId    String
+  masterOrder      MasterOrder @relation(fields: [masterOrderId], references: [id], onDelete: Cascade)
+  productId        String
+  name             String
+  image            String?
+  quantity         Int
+  receivedQuantity Int         @default(0)
+  price            Float
+  supplierId       String
+  supplierName     String
+}
+
+model SubOrder {
+  id            String      @id @default(cuid())
+  masterOrderId String
+  masterOrder   MasterOrder @relation(fields: [masterOrderId], references: [id], onDelete: Cascade)
+  supplierId    String
+  supplierName  String
+  status        String      @default("pending")
+  note          String?
+  sentAt        DateTime?
+}
+
+model CartReservation {
+  id           String   @id @default(cuid())
+  productId    String
+  productName  String
+  quantity     Int
+  price        Float
+  supplierId   String
+  supplierName String
+  sessionId    String
+  image        String?
+  status       String   @default("reserved")
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([productId])
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+model SupplierLedger {
+  id          String   @id @default(cuid())
+  supplierId  String
+  productId   String?
+  productName String?
+  action      String
+  description String?
+  qtyBefore   Int?
+  qtyAfter    Int?
+  delta       Int?
+  amount      Float    @default(0)
+  commission  Float    @default(0)
+  vat         Float    @default(0)
+  net         Float    @default(0)
+  referenceId String?
+  createdAt   DateTime @default(now())
+
+  @@index([supplierId])
+  @@index([productId])
+  @@index([createdAt])
+}

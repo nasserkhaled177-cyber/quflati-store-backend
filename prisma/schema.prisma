@@ -81,6 +81,7 @@ model StoreUser {
   country   String   @default("")
   countryCode String @default("")
   province  String   @default("")
+  token     String?  @default("")
     role      String   @default("CUSTOMER")
   createdAt DateTime @default(now())
 }
@@ -94,6 +95,7 @@ model Supplier {
   country   String   @default("")
   countryCode String @default("")
   province  String   @default("")
+  token     String?  @default("")
   status    String   @default("نشط")
   createdAt DateTime @default(now())
 }
@@ -108,6 +110,7 @@ model Technician {
   country   String   @default("")
   countryCode String @default("")
   province  String   @default("")
+  token     String?  @default("")
   status    String   @default("متاح")
   rating    Float    @default(5.0)
   createdAt DateTime @default(now())

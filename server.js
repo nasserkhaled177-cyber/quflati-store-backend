@@ -69,7 +69,7 @@ app.get('/', async (req, res) => {
       products: await prisma.product.findMany({ take: 100 }),
       orders: await prisma.order.findMany({ take: 100 }),
       storeUsers: await prisma.storeUser.findMany({ take: 100, select: { id: true, email: true, phone: true, name: true, city: true, country: true, countryCode: true, province: true, role: true, createdAt: true } }),
-      suppliers: await prisma.supplier.findMany({ take: 100, select: { id: true, name: true, phone: true, city: true, country: true, countryCode: true, province: true, status: true, createdAt: true } }),
+      suppliers: await prisma.supplier.findMany({ take: 100, select: { id: true, name: true, phone: true, city: true, country: true, countryCode: true, province: true,token: true, status: true, createdAt: true } }),
       technicians: await prisma.technician.findMany({ take: 100, select: { id: true, name: true, phone: true, specialty: true, city: true, country: true, countryCode: true, province: true, status: true, rating: true, createdAt: true } }),
       categories: await prisma.category.findMany({ take: 100 }),
       tags: await prisma.tag.findMany({ take: 100 }),

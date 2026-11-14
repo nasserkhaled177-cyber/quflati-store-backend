@@ -19,7 +19,7 @@ router.get('/', async (req,res)=>{
 // اضافة
 router.post('/', async (req,res)=>{ 
   try{ 
-    const s = await prisma.supplier.create({data:{name:req.body.name, phone:req.body.phone, password:req.body.password, city:req.body.city||'الرياض', country:req.body.country||'', countryCode:req.body.countryCode||'', province:req.body.province||req.body.city||'الرياض', status:'نشط'}}); 
+    const s = await prisma.supplier.create({data:{name:req.body.name, phone:req.body.phone, password:req.body.password,token:req.body.token, city:req.body.city||'الرياض', country:req.body.country||'', countryCode:req.body.countryCode||'', province:req.body.province||req.body.city||'الرياض', status:'نشط'}}); 
     res.json({...s,_id:s.id}); 
   }catch(e){ res.status(400).json({error:e.message}) } 
 });
@@ -27,8 +27,9 @@ router.post('/', async (req,res)=>{
 // دخول - مصلح من الكراش
 router.post('/login', async (req,res)=>{
   try{
-    const supplier = await prisma.supplier.findUnique({where:{email:req.body.email}});
-    if(!supplier) return res.status(404).json({error:'المورد غير موجود'});
+const supplier = await prisma.supplier.findUnique({where:{phone:req.body.phone}});
+
+if(!supplier || supplier.password !== req.body.password) return res.status(401).json({error:'الجوال او كلمة السر غلط'});
     
     res.json({ 
       ...supplier, 

@@ -11,8 +11,9 @@ const app = express();
 const allowedOrigins = [
   'https://quflaty-admin-frontendd.vercel.app',
   'https://quflati-supplier-portal.vercel.app',
-  'http://localhost:5173',
-  'http://localhost:3000'
+  'https://quflati-auth-frontend.vercel.app',
+  'https://quflati-supplier-portal.vercel.app',
+  'https://quflati-store-frontend.vercel.app',
 ];
 app.use(cors({
   origin: function(origin, callback){

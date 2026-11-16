@@ -100,21 +100,6 @@ model Supplier {
   createdAt DateTime @default(now())
 }
 
-model Technician {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @unique
-  password  String
-  specialty String?
-  city      String?
-  country   String   @default("")
-  countryCode String @default("")
-  province  String   @default("")
-  token     String?  @default("")
-  status    String   @default("متاح")
-  rating    Float    @default(5.0)
-  createdAt DateTime @default(now())
-}
 
 model Category {
   id        String   @id @default(cuid())

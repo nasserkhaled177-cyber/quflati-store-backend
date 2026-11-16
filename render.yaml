@@ -13,7 +13,6 @@ services:
         sync: false
             - key: DELETE_CODE
         sync: false
-
 databases:
     - name: quflati-db
     databaseName: quflati

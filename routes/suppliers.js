@@ -1,14 +1,14 @@
-import 【entity-express¦canonical_name=express】 from '【entity-express¦canonical_name=express】'
-import { PrismaClient } from '@【entity-prisma¦canonical_name=Prisma】/client'
-const router = 【entity-express¦canonical_name=express】.Router()
-const 【entity-prisma¦canonical_name=Prisma】 = new PrismaClient()
+const express = require('express');
+const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 // 1. الأدمن يضيف مورد - من فرونت الأدمن
 router.post('/', async (req, res) => {
   try {
     const { name, phone, password, city, country, countryCode, province } = req.body
     if(!name || !phone || !password) return res.status(400).json({ error: "الاسم والجوال وكلمة السر مطلوبة" })
-    const supplier = await 【entity-prisma¦canonical_name=Prisma】.supplier.create({
+    const supplier = await supplier.create({
       data: { name, phone, password, city: city || "", country: country || "اليمن", countryCode: countryCode || "+967", province: province || "", status: "نشط" }
     })
     res.json(supplier)
@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
 
 // 2. الأدمن يعرض كل الموردين
 router.get('/', async (req, res) => {
-  const list = await 【entity-prisma¦canonical_name=Prisma】.supplier.findMany({ orderBy: { createdAt: 'desc' } })
+  const list = await supplier.findMany({ orderBy: { createdAt: 'desc' } })
   res.json(list)
 })
 
@@ -43,4 +43,4 @@ router.get('/me', async (req, res) => {
   res.json(supplier)
 })
 
-export default router
+module.exports = router;

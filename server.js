@@ -37,7 +37,8 @@ app.use((req, res, next) => {
 });
 
 app.use("/uploads", express.static("uploads"));
-app.use('/api/suppliers', suppliersRouter)
+const suppliersRouter = require('./routes/suppliers');
+app.use('/api/suppliers', suppliersRouter);
 // 2. ربط الـ auth - نفك الـ { router } لأن الملف يصدر أوبجكت
 const { router: authRouter } = require("./routes/auth");
 app.use("/auth", authRouter);

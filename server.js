@@ -9,7 +9,7 @@ const app = express();
 
 // 1. لازم json و cors قبل أي راوتر - هذا كان الغلط الأول
 const allowedOrigins = [
-  'https://quflaty-admin-frontendd.vercel.app',
+  'https://quflaty-admin-frontend.vercel.app',
   'https://quflati-supplier-portal.vercel.app',
   'https://quflati-auth-frontend.vercel.app',
   'https://quflati-supplier-portal.vercel.app',
@@ -37,7 +37,7 @@ app.use((req, res, next) => {
 });
 
 app.use("/uploads", express.static("uploads"));
-
+app.use('/api/suppliers', suppliersRouter)
 // 2. ربط الـ auth - نفك الـ { router } لأن الملف يصدر أوبجكت
 const { router: authRouter } = require("./routes/auth");
 app.use("/auth", authRouter);

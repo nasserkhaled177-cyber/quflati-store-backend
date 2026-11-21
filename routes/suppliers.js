@@ -8,10 +8,10 @@ router.post('/', async (req, res) => {
   try {
     const { name, phone, password, city, country, countryCode, province } = req.body
     if(!name || !phone || !password) return res.status(400).json({ error: "الاسم والجوال وكلمة السر مطلوبة" })
-    const supplier = await supplier.create({
+    const created = await prisma.supplier.create({
       data: { name, phone, password, city: city || "", country: country || "اليمن", countryCode: countryCode || "+967", province: province || "", status: "نشط" }
     })
-    res.json(supplier)
+    res.json(created)
   } catch(e) {
     if(e.code === 'P2002') return res.status(400).json({ error: "الجوال هذا مسجل من قبل" })
     res.status(500).json({ error: e.message })
@@ -20,8 +20,10 @@ router.post('/', async (req, res) => {
 
 // 2. الأدمن يعرض كل الموردين
 router.get('/', async (req, res) => {
-  const list = await supplier.findMany({ orderBy: { createdAt: 'desc' } })
-  res.json(list)
+  try {
+    const list = await prisma.supplier.findMany({ orderBy: { createdAt: 'desc' } })
+    res.json(list)
+  } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
 // 3. المورد يسجل دخول - من فرونت المورد

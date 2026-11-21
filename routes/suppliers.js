@@ -11,7 +11,8 @@ router.post('/', async (req, res) => {
     const created = await prisma.supplier.create({
       data: { name, phone, password, city: city || "", country: country || "اليمن", countryCode: countryCode || "+967", province: province || "", status: "نشط" }
     })
-    res.json(created)
+    const { password: _, ...safe } = created
+    res.json(safe)
   } catch(e) {
     if(e.code === 'P2002') return res.status(400).json({ error: "الجوال هذا مسجل من قبل" })
     res.status(500).json({ error: e.message })
@@ -21,7 +22,7 @@ router.post('/', async (req, res) => {
 // 2. الأدمن يعرض كل الموردين
 router.get('/', async (req, res) => {
   try {
-    const list = await prisma.supplier.findMany({ orderBy: { createdAt: 'desc' } })
+    const list = await prisma.supplier.findMany({ orderBy: { createdAt: 'desc' }, select: { id: true, name: true, phone: true, city: true, country: true, countryCode: true, province: true, status: true, createdAt: true } })
     res.json(list)
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
@@ -42,7 +43,8 @@ router.get('/me', async (req, res) => {
   if(!token) return res.status(401).json({ error: "مافي توكن" })
   const supplier = await prisma.supplier.findFirst({ where: { token } })
   if(!supplier) return res.status(401).json({ error: "توكن غلط" })
-  res.json(supplier)
+  const { password: _p, token: _t, ...safeMe } = supplier
+  res.json(safeMe)
 })
 
 module.exports = router;

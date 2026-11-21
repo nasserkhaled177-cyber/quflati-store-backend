@@ -7,31 +7,52 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const app = express();
 
-// 1. لازم json و cors قبل أي راوتر - هذا كان الغلط الأول
+// ✅ 1. لازم json و cors قبل أي راوتر
 const allowedOrigins = [
+  'https://quflati-admin-frontend.vercel.app',
   'https://quflaty-admin-frontend.vercel.app',
-  'https://quflati-supplier-portal.vercel.app',
-  'https://quflati-auth-frontend.vercel.app',
+  'https://quflati-supplier-frontend.vercel.app',
   'https://quflati-supplier-portal.vercel.app',
   'https://quflati-store-frontend.vercel.app',
+  'https://quflati-technician-frontend.vercel.app',
+  'https://quflati-auth-frontend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
 ];
-app.use(cors({
+
+const corsOptions = {
   origin: function(origin, callback){
     if(!origin) return callback(null, true);
     if(allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(null, false);
+    console.log('⚠️ CORS - دومين جديد مو في القايمة:', origin);
+    return callback(null, true);
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions)); // ✅ بدال '*' - لان '*' يكسر Express 5
+
 app.use(express.json());
-// سجل كل حركة - JSON
+
+// ✅ سجل كل حركة - JSON - يطلع كل شي
 app.use((req, res, next) => {
   console.log(JSON.stringify({
     time: new Date().toISOString(),
     method: req.method,
     url: req.url,
-    body: req.body,
-    query: req.query
+    origin: req.headers.origin || 'no-origin',
+    ip: req.ip,
+    headers: {
+      contentType: req.headers['content-type'],
+      authorization: req.headers.authorization ? 'Bearer ***' : 'no-token',
+      userAgent: req.headers['user-agent'],
+    },
+    query: req.query,
+    params: req.params,
+    body: req.body || {},
   }, null, 2));
   next();
 });
@@ -84,7 +105,7 @@ app.get('/', async (req, res) => {
       products: await prisma.product.findMany({ take: 100 }),
       orders: await prisma.order.findMany({ take: 100 }),
       storeUsers: await prisma.storeUser.findMany({ take: 100, select: { id: true, email: true, phone: true, name: true, city: true, country: true, countryCode: true, province: true, role: true, createdAt: true } }),
-      suppliers: await prisma.supplier.findMany({ take: 100, select: { id: true, name: true, phone: true, city: true, country: true, countryCode: true, province: true,token: true, status: true, createdAt: true } }),
+      suppliers: await prisma.supplier.findMany({ take: 100, select: { id: true, name: true, phone: true, city: true, country: true, countryCode: true, province: true, status: true, createdAt: true } }),
       technicians: await prisma.technician.findMany({ take: 100, select: { id: true, name: true, phone: true, specialty: true, city: true, country: true, countryCode: true, province: true, status: true, rating: true, createdAt: true } }),
       categories: await prisma.category.findMany({ take: 100 }),
       tags: await prisma.tag.findMany({ take: 100 }),
@@ -96,7 +117,6 @@ app.get('/', async (req, res) => {
     };
     res.json(data);
   } catch (e) {
-    console.log(JSON.stringify({ error: e.message }, null, 2));
     res.status(500).json({ error: e.message });
   }
 });

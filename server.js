@@ -6,7 +6,7 @@ const fs = require("fs");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const app = express();
-
+const PORT = process.env.PORT || 3003
 // ✅ 1. لازم json و cors قبل أي راوتر
 const allowedOrigins = [
   'https://quflati-admin-frontend.vercel.app',

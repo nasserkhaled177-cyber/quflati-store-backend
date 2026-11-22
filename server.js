@@ -88,63 +88,18 @@ async function safeCount(model){
 }
 
 app.get('/', async (req, res) => {
-  // مثل باكند الفنيين - حاول تجيب بيانات حقيقية، واذا فشلت ارجع جيسون ثابت
-  try{
-    const [products, orders, storeUsers, suppliers, categories] = await Promise.all([
-      safeCount(prisma.product),
-      safeCount(prisma.order),
-      safeCount(prisma.storeUser),
-      safeCount(prisma.supplier),
-      safeCount(prisma.category),
-    ])
-    const sampleProducts = await prisma.product.findMany({ take: 5 }).catch(()=>[])
-    return res.json({
-      ok: true,
-      service: 'quflati-store-backend',
-      message: 'Store backend شغال ✅',
-      time: new Date().toISOString(),
-      counts: { products, orders, storeUsers, suppliers, categories },
-      sampleProducts
-    })
-  }catch(e){
-    return res.json({ ok: true, service: 'quflati-store-backend', message: 'Store backend شغال ✅', time: new Date().toISOString(), counts: {}, warning: 'DB not reachable' })
-  }
+  // STORE_ROOT_FINAL - مضمون على schema.prisma الحقيقي
   try {
-    const data = {
-      message: "Quflati Store API ✅ - auto routes",
-      port: 3003,
-      time: new Date().toISOString(),
-      counts: {
-        products: await safeCount(prisma.product),
-        orders: await safeCount(prisma.order),
-        storeUsers: await safeCount(prisma.storeUser),
-        suppliers: await safeCount(prisma.supplier),
-        categories: await safeCount(prisma.category),
-        tags: await safeCount(prisma.tag),
-        payouts: await safeCount(prisma.payout),
-        masterOrders: await safeCount(prisma.masterOrder),
-        masterOrderItems: await safeCount(prisma.masterOrderItem),
-        subOrders: await safeCount(prisma.subOrder),
-        cartReservations: await safeCount(prisma.cartReservation),
-        supplierLedger: await safeCount(prisma.supplierLedger),
-      },
-      products: await prisma.product.findMany({ take: 100 }),
-      orders: await prisma.order.findMany({ take: 100 }),
-      storeUsers: await prisma.storeUser.findMany({ take: 100, select: { id: true, email: true, phone: true, name: true, city: true, country: true, countryCode: true, province: true, role: true, createdAt: true } }),
-      suppliers: await prisma.supplier.findMany({ take: 100, select: { id: true, name: true, phone: true, city: true, country: true, countryCode: true, province: true, status: true, createdAt: true } }),
-      technicians: await prisma.technician.findMany({ take: 100, select: { id: true, name: true, phone: true, specialty: true, city: true, country: true, countryCode: true, province: true, status: true, rating: true, createdAt: true } }),
-      categories: await prisma.category.findMany({ take: 100 }),
-      tags: await prisma.tag.findMany({ take: 100 }),
-      payouts: await prisma.payout.findMany({ take: 100 }),
-      masterOrders: await prisma.masterOrder.findMany({ take: 100, include: { items: true, subOrders: true } }),
-      subOrders: await prisma.subOrder.findMany({ take: 100 }),
-      cartReservations: await prisma.cartReservation.findMany({ take: 100 }),
-      supplierLedger: await prisma.supplierLedger.findMany({ take: 100, orderBy: { createdAt: 'desc' } }),
-    };
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    const products = await prisma.product.count().catch(()=>0)
+    const orders = await prisma.order.count().catch(()=>0)
+    const storeUsers = await prisma.storeUser.count().catch(()=>0)
+    const suppliers = await prisma.supplier.count().catch(()=>0)
+    const categories = await prisma.category.count().catch(()=>0)
+    const tags = await prisma.tag.count().catch(()=>0)
+    const payouts = await prisma.payout.count().catch(()=>0)
+    const sampleProducts = await prisma.product.findMany({ take: 3, select: { id:true, name:true, price:true } }).catch(()=>[])
+    return res.json({ ok:true, service:'quflati-store-backend', message:'Store backend شغال ✅', time:new Date().toISOString(), counts:{ products, orders, storeUsers, suppliers, categories, tags, payouts }, sampleProducts })
+  } catch(e){
+    return res.json({ ok:true, service:'quflati-store-backend', message:'Store backend شغال ✅', time:new Date().toISOString(), counts:{}, warning:e.message })
   }
-});
-const PORT = process.env.PORT || 3003;
-app.listen(PORT, () => console.log(`🚀 Backend on port ${PORT}`));
+})

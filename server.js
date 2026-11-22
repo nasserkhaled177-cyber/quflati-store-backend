@@ -80,26 +80,34 @@ fs.readdirSync(routesPath).forEach(file => {
 });
 
 app.get("/api", (req,res)=> res.json({ message: "Quflati Store API ✅ - auto routes", port: 3003 }));
+async function safeCount(model){
+  try{
+    if(!model || typeof model.count !== "function") return 0
+    return await model.count()
+  }catch{ return 0 }
+}
+
 app.get('/', async (req, res) => {
+  // STORE_ROOT_STATIC - لا تلمس قاعدة البيانات في الجذر
+  return res.json({ ok: true, service: 'quflati-store-backend', message: 'Store backend شغال ✅', time: new Date().toISOString(), counts: {} })
   try {
     const data = {
       message: "Quflati Store API ✅ - auto routes",
       port: 3003,
       time: new Date().toISOString(),
       counts: {
-        products: await prisma.product.count(),
-        orders: await prisma.order.count(),
-        storeUsers: await prisma.storeUser.count(),
-        suppliers: await prisma.supplier.count(),
-        technicians: await prisma.technician.count(),
-        categories: await prisma.category.count(),
-        tags: await prisma.tag.count(),
-        payouts: await prisma.payout.count(),
-        masterOrders: await prisma.masterOrder.count(),
-        masterOrderItems: await prisma.masterOrderItem.count(),
-        subOrders: await prisma.subOrder.count(),
-        cartReservations: await prisma.cartReservation.count(),
-        supplierLedger: await prisma.supplierLedger.count(),
+        products: await safeCount(prisma.product),
+        orders: await safeCount(prisma.order),
+        storeUsers: await safeCount(prisma.storeUser),
+        suppliers: await safeCount(prisma.supplier),
+        categories: await safeCount(prisma.category),
+        tags: await safeCount(prisma.tag),
+        payouts: await safeCount(prisma.payout),
+        masterOrders: await safeCount(prisma.masterOrder),
+        masterOrderItems: await safeCount(prisma.masterOrderItem),
+        subOrders: await safeCount(prisma.subOrder),
+        cartReservations: await safeCount(prisma.cartReservation),
+        supplierLedger: await safeCount(prisma.supplierLedger),
       },
       products: await prisma.product.findMany({ take: 100 }),
       orders: await prisma.order.findMany({ take: 100 }),

@@ -103,3 +103,9 @@ app.get('/', async (req, res) => {
     return res.json({ ok:true, service:'quflati-store-backend', message:'Store backend شغال ✅', time:new Date().toISOString(), counts:{}, warning:e.message })
   }
 })
+
+// Render لازم يسمع على process.env.PORT، مو على 3003 ثابت
+const PORT = process.env.PORT || 3003
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Store backend listening on port ${PORT}`)
+})

@@ -88,8 +88,27 @@ async function safeCount(model){
 }
 
 app.get('/', async (req, res) => {
-  // STORE_ROOT_STATIC - لا تلمس قاعدة البيانات في الجذر
-  return res.json({ ok: true, service: 'quflati-store-backend', message: 'Store backend شغال ✅', time: new Date().toISOString(), counts: {} })
+  // مثل باكند الفنيين - حاول تجيب بيانات حقيقية، واذا فشلت ارجع جيسون ثابت
+  try{
+    const [products, orders, storeUsers, suppliers, categories] = await Promise.all([
+      safeCount(prisma.product),
+      safeCount(prisma.order),
+      safeCount(prisma.storeUser),
+      safeCount(prisma.supplier),
+      safeCount(prisma.category),
+    ])
+    const sampleProducts = await prisma.product.findMany({ take: 5 }).catch(()=>[])
+    return res.json({
+      ok: true,
+      service: 'quflati-store-backend',
+      message: 'Store backend شغال ✅',
+      time: new Date().toISOString(),
+      counts: { products, orders, storeUsers, suppliers, categories },
+      sampleProducts
+    })
+  }catch(e){
+    return res.json({ ok: true, service: 'quflati-store-backend', message: 'Store backend شغال ✅', time: new Date().toISOString(), counts: {}, warning: 'DB not reachable' })
+  }
   try {
     const data = {
       message: "Quflati Store API ✅ - auto routes",
